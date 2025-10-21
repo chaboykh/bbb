@@ -1,0 +1,15 @@
+{
+ * "version": 2,
+ * "builds": [
+ * {
+ * "src": "khmer_shop.js",
+ * "use": "@vercel/node"
+ * }
+ * ],
+ * "routes": [
+ * {
+ * "src": "/(.*)",
+ * "dest": "khmer_shop.js"
+ * }
+ * ]
+ * }
