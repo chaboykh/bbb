@@ -1,0 +1,535 @@
+/*
+ * គេហទំព័រលក់ទំនិញជាភាសាខ្មែរ ដោយប្រើ Node.js និង Express.js
+ * Khmer Web Shop using Node.js and Express.js
+ *
+ * =======================================================================
+ * == ការណែនាំសម្រាប់ដាក់ឲ្យដំណើរការនៅលើ Vercel (Vercel Deployment Guide) ==
+ * =======================================================================
+ * ដើម្បីដាក់ឲ្យដំណើរការគេហទំព័រនេះនៅលើ Vercel, អ្នកត្រូវបង្កើតឯកសារ ២ បន្ថែមទៀតនៅក្នុង Folder តែមួយជាមួយไฟล์นี้។
+ *
+ * 1. បង្កើតឯកសារឈ្មោះ `package.json` ហើយចម្លងកូដខាងក្រោមដាក់ចូល៖
+ * (Create a file named `package.json` and paste the following content:)
+ *
+ * {
+ * "name": "khmer-shop-vercel",
+ * "version": "1.0.0",
+ * "description": "Khmer Web Shop for Vercel",
+ * "main": "khmer_shop.js",
+ * "scripts": {
+ * "start": "node khmer_shop.js"
+ * },
+ * "dependencies": {
+ * "express": "^4.18.2",
+ * "axios": "^1.6.0",
+ * "multer": "^1.4.5-lts.1"
+ * }
+ * }
+ *
+ * 2. បង្កើតឯកសារឈ្មោះ `vercel.json` ហើយចម្លងកូដខាងក្រោមដាក់ចូល៖
+ * (Create a file named `vercel.json` and paste the following content:)
+ *
+ * {
+ * "version": 2,
+ * "builds": [
+ * {
+ * "src": "khmer_shop.js",
+ * "use": "@vercel/node"
+ * }
+ * ],
+ * "routes": [
+ * {
+ * "src": "/(.*)",
+ * "dest": "khmer_shop.js"
+ * }
+ * ]
+ * }
+ *
+ * 3. បន្ទាប់ពីបង្កើតឯកសារទាំងពីរនេះហើយ, អ្នកអាចដាក់ឲ្យដំណើរការ Folder នេះនៅលើ Vercel បាន។
+ *
+ * =======================================================================
+ * == ការណែនាំអំពីការដំណើរការនៅ Local (Local Run Guide) ==
+ * =======================================================================
+ * 1. សូមប្រាកដថាអ្នកបានដំឡើង Node.js រួចរាល់ហើយ។
+ * 2. ដំឡើង Dependencies ដោយវាយពាក្យបញ្ជានេះនៅក្នុង Terminal/Command Prompt:
+ * npm install express axios multer
+ * 3. រក្សាទុកឯកសារនេះជាឈ្មោះ khmer_shop.js
+ * 4. ដំណើរការម៉ាស៊ីንមេ (Server) ដោយវាយពាក្យបញ្ជា: node khmer_shop.js
+ * 5. បើក Browser របស់អ្នកแล้วចូលទៅកាន់ http://localhost:3000
+ */
+
+// 1. ការហៅយក Dependencies (Import Dependencies)
+const express = require('express');
+const axios = require('axios');
+const multer = require('multer'); // បន្ថែម multer សម្រាប់ file uploads
+const app = express();
+const port = 3000;
+
+// Multer setup (ប្រើ memory storage ព្រោះ Vercel មិនមាន persistent file system)
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Middleware for parsing form data
+app.use(express.urlencoded({ extended: true }));
+
+
+// !!! សំខាន់ !!! សូមដាក់ Discord Webhook URL របស់អ្នកនៅទីនេះ
+// !!! IMPORTANT !!! Please put your Discord Webhook URL here
+const DISCORD_WEBHOOK_URL = 'YOUR_DISCORD_WEBHOOK_URL_HERE';
+
+
+// 2. ទិន្នន័យផលិតផលគំរូ (Sample Product Data)
+// ក្នុងគម្រោងពិតប្រាកដ ទិន្នន័យនេះគួរតែមកពី Database
+const products = [
+    {
+        id: 1,
+        name: 'ក្រមាខ្មែរប្រពៃណី',
+        price: 20000,
+        description: 'ក្រមា​ត្បាញ​ពី​កប្បាស​សុទ្ធ​ ១០០% មាន​គុណភាព​ល្អ និង​ជា​អត្តសញ្ញាណ​របស់​ជាតិ​ខ្មែរ។',
+        imageUrl: 'https://placehold.co/600x400/E9967A/333333?text=ក្រមាខ្មែរ'
+    },
+    {
+        id: 2,
+        name: 'រូបចម្លាក់អង្គរវត្ត',
+        price: 60000,
+        description: 'រូបចម្លាក់​ធ្វើ​ពី​ឈើ​មាន​ក្បាច់​រចនា​យ៉ាង​ល្អិតល្អន់​ រំលេច​ពី​ទិដ្ឋភាព​ប្រាសាទ​អង្គរវត្ត​ដ៏​ល្បីល្បាញ។',
+        imageUrl: 'https://placehold.co/600x400/8FBC8F/333333?text=រូបចម្លាក់'
+    },
+    {
+        id: 3,
+        name: 'សម្លៀកបំពាក់ប្រពៃណីខ្មែរ',
+        price: 150000,
+        description: 'ឈុត​សម្លៀក​បំពាក់​ប្រពៃណី​សម្រាប់​ចូលរួម​ក្នុង​កម្មវិធី​បុណ្យ​ទាន​ផ្សេងៗ។ មាន​ច្រើន​ពណ៌​សម្រាប់​ជ្រើសរើស។',
+        imageUrl: 'https://placehold.co/600x400/4682B4/FFFFFF?text=សម្លៀកបំពាក់'
+    },
+    {
+        id: 4,
+        name: 'ម្រេចកំពត (ប្រភេទខ្មៅ)',
+        price: 45000,
+        description: 'ម្រេច​កំពត​แท้​មាន​រសជាតិ​ឈ្ងុយ​ឆ្ងាញ់​ និង​ក្លិន​ក្រអូប​ مميزة។ បាន​ទទួល​ស្គាល់​ជា​ផលិតផល​សម្គាល់​ភូមិសាស្ត្រ (GI)។',
+        imageUrl: 'https://placehold.co/600x400/333333/FFFFFF?text=ម្រេចកំពត'
+    }
+];
+
+// Function សម្រាប់ធ្វើទ្រង់ទ្រាយតម្លៃ (Price Formatting Function)
+function formatCurrency(price) {
+    return new Intl.NumberFormat('km-KH', { style: 'currency', currency: 'KHR' }).format(price);
+}
+
+// 3. ផ្នែក HTML Template (HTML Template Section)
+// Function នេះបង្កើតទំព័រ HTML ទាំងមូលតែម្ដង
+function renderPage(title, content) {
+    return `
+        <!DOCTYPE html>
+        <html lang="km">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${title} | ហាងទំនិញខ្មែរ</title>
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700&family=Koulen&display=swap" rel="stylesheet">
+            <style>
+                :root {
+                    --primary-color: #9B2226; /* Khmer Red */
+                    --secondary-color: #EE9B00; /* Gold */
+                    --text-color: #333;
+                    --bg-color: #FAF9F6;
+                    --card-bg: #FFFFFF;
+                }
+
+                body {
+                    font-family: 'Battambang', cursive;
+                    margin: 0;
+                    padding: 0;
+                    background-color: var(--bg-color);
+                    color: var(--text-color);
+                    line-height: 1.6;
+                }
+
+                .container {
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }
+
+                /* Header */
+                header {
+                    background-color: var(--primary-color);
+                    color: white;
+                    padding: 1rem 0;
+                    text-align: center;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+
+                header h1 {
+                    font-family: 'Koulen', cursive;
+                    margin: 0;
+                    font-size: 2.5rem;
+                }
+                
+                header h1 a {
+                    color: white;
+                    text-decoration: none;
+                }
+
+                /* Main Content */
+                main {
+                    padding: 2rem 0;
+                }
+                
+                .page-title {
+                    text-align: center;
+                    font-family: 'Koulen', cursive;
+                    font-size: 2.2rem;
+                    color: var(--primary-color);
+                    margin-bottom: 2rem;
+                }
+
+                /* Product Grid */
+                .product-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                    gap: 25px;
+                }
+
+                .product-card {
+                    background-color: var(--card-bg);
+                    border-radius: 12px;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+                    overflow: hidden;
+                    transition: transform 0.3s ease, box-shadow 0.3s ease;
+                    display: flex;
+                    flex-direction: column;
+                }
+                
+                .product-card:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 8px 16px rgba(0,0,0,0.12);
+                }
+
+                .product-card img {
+                    width: 100%;
+                    height: 200px;
+                    object-fit: cover;
+                }
+
+                .product-card-content {
+                    padding: 20px;
+                    flex-grow: 1;
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .product-card h3 {
+                    margin-top: 0;
+                    font-family: 'Koulen', cursive;
+                    color: var(--primary-color);
+                }
+                
+                .product-card .price {
+                    font-weight: bold;
+                    color: #007F5F; /* Green price */
+                    font-size: 1.2rem;
+                    margin-top: auto;
+                    margin-bottom: 1rem;
+                }
+
+                .product-card .btn {
+                    display: block;
+                    width: 100%;
+                    padding: 10px;
+                    background-color: var(--secondary-color);
+                    color: var(--text-color);
+                    text-align: center;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    font-weight: bold;
+                    transition: background-color 0.3s ease;
+                }
+
+                .product-card .btn:hover {
+                    background-color: #ca6702;
+                    color: white;
+                }
+
+                /* Product Detail & Checkout Page */
+                .product-detail, .checkout-form {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 40px;
+                    background: var(--card-bg);
+                    padding: 30px;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+                }
+                .product-detail-image {
+                    flex: 1 1 400px;
+                }
+                .product-detail-image img {
+                    width: 100%;
+                    border-radius: 12px;
+                }
+                .product-detail-info {
+                    flex: 1 1 400px;
+                }
+                .product-detail-info h2 {
+                     font-family: 'Koulen', cursive;
+                     font-size: 2.5rem;
+                     margin-top: 0;
+                     color: var(--primary-color);
+                }
+                .product-detail-info .price {
+                    font-size: 2rem;
+                    font-weight: bold;
+                    color: #007F5F;
+                    margin-bottom: 1.5rem;
+                }
+                .product-detail-info .description {
+                    font-size: 1.1rem;
+                    margin-bottom: 2rem;
+                }
+                .btn-action {
+                    display: inline-block;
+                    background: var(--primary-color);
+                    color: white;
+                    padding: 15px 30px;
+                    font-size: 1.2rem;
+                    border-radius: 8px;
+                    text-decoration: none;
+                    font-weight: bold;
+                    transition: background-color 0.3s ease;
+                    border: none;
+                    cursor: pointer;
+                }
+                .btn-action:hover {
+                    background: #6A040F;
+                }
+                .back-link {
+                    display: block;
+                    margin-top: 2rem;
+                    margin-bottom: 1rem;
+                    text-decoration: none;
+                    color: var(--primary-color);
+                    font-weight: bold;
+                }
+                .back-link:hover {
+                    text-decoration: underline;
+                }
+
+                /* Checkout Form Specifics */
+                .form-group {
+                    width: 100%;
+                    margin-bottom: 1.5rem;
+                }
+                .form-group label {
+                    display: block;
+                    font-weight: bold;
+                    margin-bottom: 0.5rem;
+                }
+                .form-group input[type="file"] {
+                    padding: 10px;
+                    border: 1px solid #ccc;
+                    border-radius: 8px;
+                    width: 100%;
+                }
+
+
+                /* Footer */
+                footer {
+                    text-align: center;
+                    padding: 20px;
+                    margin-top: 40px;
+                    background-color: #f2f2f2;
+                    border-top: 1px solid #ddd;
+                }
+            </style>
+        </head>
+        <body>
+            <header>
+                <h1><a href="/">ហាងទំនិញខ្មែរ</a></h1>
+            </header>
+            <main>
+                <div class="container">
+                    ${content}
+                </div>
+            </main>
+            <footer>
+                <p>&copy; រក្សាសិទ្ធិគ្រប់យ៉ាង ២០២៥ โดย ហាងទំនិញខ្មែរ</p>
+            </footer>
+        </body>
+        </html>
+    `;
+}
+
+
+// 4. Routes (ការកំណត់ផ្លូវ)
+
+// ទំព័រដើម - បង្ហាញផលិតផលទាំងអស់ (Home Page - Show all products)
+app.get('/', (req, res) => {
+    let productGridHtml = `
+        <h2 class="page-title">ផលិតផលរបស់យើង</h2>
+        <div class="product-grid">
+    `;
+
+    products.forEach(product => {
+        productGridHtml += `
+            <div class="product-card">
+                <img src="${product.imageUrl}" alt="${product.name}">
+                <div class="product-card-content">
+                    <h3>${product.name}</h3>
+                    <p class="price">${formatCurrency(product.price)}</p>
+                    <a href="/product/${product.id}" class="btn">មើលព័ត៌មានលម្អិត</a>
+                </div>
+            </div>
+        `;
+    });
+
+    productGridHtml += '</div>';
+    res.send(renderPage('ទំព័រដើម', productGridHtml));
+});
+
+// ទំព័រព័ត៌មានលម្អិតរបស់ផលិតផល (Product Detail Page)
+app.get('/product/:id', (req, res) => {
+    const productId = parseInt(req.params.id);
+    const product = products.find(p => p.id === productId);
+
+    if (product) {
+        const productDetailHtml = `
+            <a href="/" class="back-link">&larr; ត្រឡប់ទៅទំព័រដើមវិញ</a>
+            <div class="product-detail">
+                <div class="product-detail-image">
+                    <img src="${product.imageUrl}" alt="${product.name}">
+                </div>
+                <div class="product-detail-info">
+                    <h2>${product.name}</h2>
+                    <p class="price">${formatCurrency(product.price)}</p>
+                    <p class="description">${product.description}</p>
+                    <a href="/checkout/${product.id}" class="btn-action">สั่งซื้อและชำระเงิน</a>
+                </div>
+            </div>
+        `;
+        res.send(renderPage(product.name, productDetailHtml));
+    } else {
+        const notFoundHtml = `
+            <h2 class="page-title">រកមិនឃើញផលិតផល</h2>
+            <p style="text-align: center;">សូមអភ័យទោស! ផលិតផលដែលអ្នកកំពុងស្វែងរកមិនមានទេ។ សូមត្រឡប់ទៅកាន់<a href="/">ទំព័រដើម</a>វិញ។</p>
+        `;
+        res.status(404).send(renderPage('រកមិនឃើញ', notFoundHtml));
+    }
+});
+
+// (GET) ទំព័រ Checkout (Checkout Page)
+app.get('/checkout/:id', (req, res) => {
+    const productId = parseInt(req.params.id);
+    const product = products.find(p => p.id === productId);
+
+    if (product) {
+        const checkoutHtml = `
+            <a href="/product/${product.id}" class="back-link">&larr; ត្រឡប់ទៅវិញ</a>
+            <h2 class="page-title">បញ្ជាក់ការបញ្ជាទិញ និងទូទាត់ប្រាក់</h2>
+            <form class="checkout-form" action="/submit-payment/${product.id}" method="POST" enctype="multipart/form-data">
+                <div class="product-detail-info">
+                    <h2>${product.name}</h2>
+                    <p class="price">សរុប: ${formatCurrency(product.price)}</p>
+                    <div class="form-group">
+                        <label for="paymentImage">📸 បង្ហោះរូបភាពវិក្កយបត្រទូទាត់ប្រាក់</label>
+                        <input type="file" id="paymentImage" name="paymentImage" accept="image/*" required>
+                    </div>
+                    <button type="submit" class="btn-action">ยืนยันการชำระเงิน</button>
+                </div>
+                <div class="product-detail-image">
+                    <img src="${product.imageUrl}" alt="${product.name}">
+                </div>
+            </form>
+        `;
+        res.send(renderPage(`ទូទាត់ប្រាក់สำหรับ ${product.name}`, checkoutHtml));
+    } else {
+        res.redirect('/');
+    }
+});
+
+// (POST) Route សម្រាប់បញ្ជូនការទូទាត់ និងផ្ញើទៅ Discord
+app.post('/submit-payment/:id', upload.single('paymentImage'), async (req, res) => {
+    if (DISCORD_WEBHOOK_URL === 'YOUR_DISCORD_WEBHOOK_URL_HERE') {
+        const errorHtml = `
+            <h2 class="page-title">ការកំណត់មិនត្រឹមត្រូវ</h2>
+            <p style="text-align: center; color: red; font-weight: bold;">
+                សូមមេត្តាកំណត់ค่า DISCORD_WEBHOOK_URL នៅក្នុងឯកសារ khmer_shop.js ជាមុនសិន។
+            </p>
+            <p style="text-align: center;"><a href="/" class="back-link">ត្រឡប់ទៅទំព័រដើមវិញ</a></p>
+        `;
+        return res.status(500).send(renderPage('មានបញ្ហា', errorHtml));
+    }
+
+    const productId = parseInt(req.params.id);
+    const product = products.find(p => p.id === productId);
+
+    if (!product) {
+        return res.redirect('/');
+    }
+
+    // ពិនិត្យមើលថាមានឯកសារត្រូវបានបង្ហោះ
+    if (!req.file) {
+        const errorHtml = `
+            <h2 class="page-title">មានបញ្ហា</h2>
+            <p style="text-align: center;">សូមមេត្តាបង្ហោះរូបភាពវិក្កយបត្រទូទាត់ប្រាក់របស់អ្នក។</p>
+            <p style="text-align: center;"><a href="/checkout/${product.id}" class="back-link">ត្រឡប់ទៅវិញ</a></p>
+        `;
+        return res.status(400).send(renderPage('មានបញ្ហា', errorHtml));
+    }
+
+    const { originalname, mimetype, size } = req.file;
+
+    // បង្កើតទិន្នន័យសម្រាប់ផ្ញើទៅ Discord
+    const discordPayload = {
+        username: "ហាងទំនិញខ្មែរ (Bot)",
+        avatar_url: "https://placehold.co/128x128/9B2226/FFFFFF?text=ហាង",
+        embeds: [
+            {
+                title: "💸 ការទូទាត់ប្រាក់ថ្មី!",
+                color: 5763719, // Green color
+                timestamp: new Date().toISOString(),
+                thumbnail: {
+                    url: product.imageUrl,
+                },
+                fields: [
+                    { name: "✅ ផលិតផល", value: `**${product.name}**`, inline: true },
+                    { name: "💰 តម្លៃ", value: `**${formatCurrency(product.price)}**`, inline: true },
+                    { name: "📄 វិក្កយបត្រ", value: `**${originalname}** (${(size / 1024).toFixed(2)} KB)`, inline: false },
+                ],
+                footer: {
+                    text: `លេខសម្គាល់ផលិតផល: ${product.id}`,
+                },
+            },
+        ],
+    };
+
+    try {
+        await axios.post(DISCORD_WEBHOOK_URL, discordPayload);
+        console.log('ការជូនដំណឹងអំពីការទូទាត់ត្រូវបានផ្ញើទៅ Discord ដោយជោគជ័យ!');
+        
+        const successHtml = `
+            <h2 class="page-title">ขอบคุณ!</h2>
+            <p style="text-align: center;">យើងបានទទួលការបញ្ជាទិញរបស់អ្នកសម្រាប់ **${product.name}** ហើយ។</p>
+            <p style="text-align: center;">យើងនឹងពិនិត្យមើលការទូទាត់ប្រាក់របស់លោកអ្នក និងទាក់ទងกลับไปក្នុងពេលឆាប់ៗนี้។</p>
+            <p style="text-align: center;"><a href="/" class="back-link">ត្រឡប់ទៅទំព័រដើម</a></p>
+        `;
+        res.send(renderPage('ការបញ្ជាទិញสำเร็จ', successHtml));
+
+    } catch (error) {
+        console.error('មានបញ្ហាក្នុងការផ្ញើការជូនដំណឹងទៅ Discord:', error.message);
+        const errorHtml = `
+             <h2 class="page-title">មានបញ្ហា</h2>
+            <p style="text-align: center;">មានបញ្ហាក្នុងការបញ្ជូនការបញ្ជាទិញរបស់លោកអ្នក។ សូមព្យាយាមម្តងទៀត។</p>
+            <p style="text-align: center;"><a href="/checkout/${product.id}" class="back-link">ត្រឡប់ទៅវិញ</a></p>
+        `;
+        res.status(500).send(renderPage('មានបញ្ហា', errorHtml));
+    }
+});
+
+
+// 5. ការចាប់ផ្ដើមម៉ាស៊ីនមេ (Start the Server)
+app.listen(port, () => {
+    console.log(`ម៉ាស៊ីនមេ (Server) កំពុងដំណើរការនៅលើ http://localhost:${port}`);
+    console.log('សូមចុច Ctrl+C ដើម្បីបិទ។');
+});
+
